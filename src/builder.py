@@ -28,7 +28,7 @@ class BuilderConfig:
         with open(self.config_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
-    def _validate_config(self):
+    def _validate_config(self) -> None:
         required_fields = ["project_name", "main_file", "output_name"]
 
         missing_fields = []
@@ -116,11 +116,11 @@ class Builder:
     def __init__(self, config: BuilderConfig):
         self.config = config
 
-        self._temp_dir = None
-        self._venv_path = None
-        self._python_exe = None
+        self._temp_dir: str | None = None
+        self._venv_path: str | None = None
+        self._python_exe: str | None = None
 
-    def create_temp_env(self):
+    def create_temp_env(self) -> None:
         """Create a temporary virtual environment."""
         self._temp_dir = tempfile.mkdtemp(prefix="build_")
         self._venv_path = Path(self._temp_dir) / "venv"
@@ -131,14 +131,14 @@ class Builder:
             text=True,
         )
         if result.returncode != 0:
-            raise Exception(f"Failed to create venv: {result.stderr}")
+            raise RuntimeError(f"Failed to create venv: {result.stderr}")
 
         if os.name == "nt":
             self._python_exe = self._venv_path / "Scripts" / "python.exe"
         else:
             self._python_exe = self._venv_path / "bin" / "python"
 
-    def _install_single_dependency(self, dep: str):
+    def _install_single_dependency(self, dep: str) -> None:
         """Install a single dependency."""
         result = subprocess.run(
             [str(self._python_exe), "-m", "pip", "install", dep],
@@ -146,9 +146,9 @@ class Builder:
             text=True,
         )
         if result.returncode != 0:
-            raise Exception(f"Failed to install {dep}: {result.stderr}")
+            raise RuntimeError(f"Failed to install {dep}: {result.stderr}")
 
-    def install_dependencies(self):
+    def install_dependencies(self) -> None:
         """Install all dependencies."""
         # Install build libraries
         for dep in self.config.build_libs:
@@ -159,10 +159,10 @@ class Builder:
             for dep in self.config.project_libs:
                 self._install_single_dependency(dep)
 
-    def build_with_nuitka(self):
+    def build_with_nuitka(self) -> None:
         """Build the project with Nuitka."""
         if not os.path.exists(self.config.main_file):
-            raise Exception(f"Main file not found: {self.config.main_file}")
+            raise FileNotFoundError(f"Main file not found: {self.config.main_file}")
 
         nuitka_args = [
             str(self._python_exe),
@@ -192,8 +192,18 @@ class Builder:
 
         # Add data dirs (if any)
         for data_dir in self.config.include_data_dirs:
-            if os.path.exists(data_dir.split("=")[0]):
-                nuitka_args.append(f"--include-data-dir={data_dir}")
+            # Parse format: "source=dest" or just "source"
+            if "=" in data_dir:
+                parts = data_dir.split("=", 1)  # Split only on first "="
+                source_path = parts[0]
+                dest_path = parts[1] if len(parts) > 1 else parts[0]
+            else:
+                source_path = data_dir
+                dest_path = data_dir
+
+            # Only add if source path exists
+            if os.path.exists(source_path):
+                nuitka_args.append(f"--include-data-dir={source_path}={dest_path}")
 
         # Add plugins
         for plugin in self.config.nuitka_plugins:
@@ -210,24 +220,31 @@ class Builder:
         if result.returncode != 0:
             print(f"  Nuitka stdout: {result.stdout}")
             print(f"  Nuitka stderr: {result.stderr}")
-            raise Exception(f"Nuitka build failed: {result.stderr}")
+            raise RuntimeError(f"Nuitka build failed: {result.stderr}")
 
         if not os.path.exists(self.config.output_name):
-            raise Exception(f"Output file not created: {self.config.output_name}")
+            raise RuntimeError(f"Output file not created: {self.config.output_name}")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up build artifacts."""
         for item in self.config.cleanup_items:
             if os.path.exists(item):
-                if os.path.isdir(item):
-                    shutil.rmtree(item)
-                else:
-                    os.remove(item)
+                try:
+                    if os.path.isdir(item):
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        os.remove(item)
+                except (OSError, PermissionError) as exception:
+                    # Log warning but don't crash on cleanup failures
+                    print(f"Warning: Failed to remove {item}: {exception}")
 
         if self._temp_dir and os.path.exists(self._temp_dir):
-            shutil.rmtree(self._temp_dir)
+            try:
+                shutil.rmtree(self._temp_dir, ignore_errors=True)
+            except (OSError, PermissionError) as exception:
+                print(f"Warning: Failed to remove temp directory {self._temp_dir}: {exception}")
 
-    def build(self):
+    def build(self) -> None:
         """Main build method."""
         try:
             print(f"Building project: {self.config.project_name}")
