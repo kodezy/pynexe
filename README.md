@@ -11,7 +11,7 @@ PyNexe simplifies the process of creating standalone Windows executables from Py
 - **Isolated build environments** ensure consistent and reproducible builds
 - **Windows metadata support** for professional executable properties
 - **UPX compression** reduces executable size automatically
-- **Rich CLI interface** with progress tracking and error reporting
+- **Rich CLI interface** with detailed progress tracking, file validation, and clear error messages
 - **Source code protection** through Nuitka's translation and obfuscation
 - **Fast startup times** compared to interpreted Python scripts
 
@@ -121,21 +121,22 @@ python pynexe.py run
 # Build with custom config
 python pynexe.py run --config production.yaml
 
-# Check project settings
+# Check project settings and file status
 python pynexe.py info
 
-# Show detailed help
+# Show help
 python pynexe.py help
 ```
 
 ## 🧠 How It Works
 
-1. **Environment Setup** - Creates isolated build environment
-2. **Dependency Resolution** - Installs required packages
-3. **Nuitka Processing** - Nuitka translates and compiles Python to executable
-4. **Optimization** - Applies UPX compression and metadata
-5. **Cleanup** - Removes temporary build files
-6. **Delivery** - Produces standalone executable
+1. **Validation** - Checks that all required files exist before building
+2. **Environment Setup** - Creates isolated build environment
+3. **Dependency Resolution** - Installs required packages with progress feedback
+4. **Nuitka Processing** - Nuitka translates and compiles Python to executable
+5. **Optimization** - Applies UPX compression and metadata
+6. **Cleanup** - Removes temporary build files
+7. **Delivery** - Produces standalone executable with size information
 
 ## 🔒 Security Considerations
 
@@ -160,7 +161,8 @@ Generated executables may trigger antivirus alerts. This is normal behavior:
 |-------|----------|
 | Missing dependencies | Add to `project_libs` in config.yaml |
 | Large executable size | UPX compression is enabled by default |
-| Build errors | Check Python syntax and dependencies |
+| Build errors | Check Python syntax and dependencies. The CLI now shows detailed error messages with suggestions |
+| File not found errors | Use `python pynexe.py info` to check file status before building |
 | Antivirus alerts | Add to whitelist or submit for analysis |
 | Nuitka build fails | Ensure Visual Studio Build Tools installed |
 | Config file not found | Create `config.yaml` in project root |
