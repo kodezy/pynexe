@@ -17,7 +17,7 @@ PyNexe simplifies the process of creating standalone Windows executables from Py
 
 ## 📋 Requirements
 
-- **Python 3.7+** (recommended: 3.13+)
+- **Python 3.13+**
 - **Windows 10/11** (64-bit)
 - **Nuitka** (installed automatically)
 - **Visual Studio Build Tools** (for Nuitka's C++ compilation)
