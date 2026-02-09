@@ -4,7 +4,6 @@ Simple and direct Python to Native Executable Builder.
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -14,18 +13,27 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.text import Text
 
-from src.builder import Builder, BuilderConfig
+from src.builder import Builder, BuilderConfig, parse_data_dir_entry
 
 
 class PyNexeCLI:
     def __init__(self):
         self._console = Console()
 
-    def print_banner(self):
+    def _print_error(self, title: str, lines: list[str], hint: str = "") -> None:
+        text = Text()
+        text.append(f"{title}\n", style="bold red")
+        for line in lines:
+            text.append(f"  {line}\n", style="red")
+        if hint:
+            text.append(f"\n{hint}", style="dim")
+        self._console.print(Panel(text, title="Error", border_style="red"))
+
+    def print_banner(self) -> None:
         banner_text = Text("PyNexe", style="bold blue")
         self._console.print(banner_text)
 
-    def print_help(self):
+    def print_help(self) -> None:
         self.print_banner()
 
         help_text = Text()
@@ -48,20 +56,17 @@ class PyNexeCLI:
         panel = Panel(help_text, border_style="blue")
         self._console.print(panel)
 
-    def build_project(self, config_path: str):
+    def build_project(self, config_path: str) -> None:
         try:
             config = BuilderConfig(config_path)
 
             validation_issues = self._validate_build_files(config)
             if validation_issues:
-                error_text = Text()
-                error_text.append("Validation failed\n", style="bold red")
-                for issue in validation_issues:
-                    error_text.append(f"  • {issue}\n", style="red")
-                error_text.append("\nFix these issues before building.", style="dim")
-
-                error_panel = Panel(error_text, title="Error", border_style="red")
-                self._console.print(error_panel)
+                self._print_error(
+                    "Validation failed",
+                    [f"• {issue}" for issue in validation_issues],
+                    "Fix these issues before building.",
+                )
                 sys.exit(1)
 
             info_text = Text()
@@ -143,58 +148,38 @@ class PyNexeCLI:
             sys.exit(1)
 
         except FileNotFoundError as exception:
-            error_text = Text()
-            error_text.append("File not found\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append(
+            self._print_error(
+                "File not found",
+                [str(exception)],
                 "Check that all required files exist in your project.",
-                style="dim",
             )
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
             sys.exit(1)
 
         except ValueError as exception:
-            error_text = Text()
-            error_text.append("Configuration error\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append(
+            self._print_error(
+                "Configuration error",
+                [str(exception)],
                 "Check your config.yaml file for missing or invalid fields.",
-                style="dim",
             )
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
             sys.exit(1)
 
         except RuntimeError as exception:
-            error_text = Text()
-            error_text.append("Build failed\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append("Check that:\n", style="dim")
-            error_text.append("  • All dependencies are available\n", style="dim")
-            error_text.append("  • Nuitka is properly installed\n", style="dim")
-            error_text.append("  • You have sufficient disk space", style="dim")
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
+            self._print_error(
+                "Build failed",
+                [str(exception)],
+                "Check that:\n  • All dependencies are available\n  • Nuitka is properly installed\n  • You have sufficient disk space",
+            )
             sys.exit(1)
 
         except Exception as exception:
-            error_text = Text()
-            error_text.append("Unexpected error\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append(
+            self._print_error(
+                "Unexpected error",
+                [str(exception)],
                 "Please report this issue with the error details above.",
-                style="dim",
             )
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
             sys.exit(1)
 
-    def show_info(self, config_path: str):
+    def show_info(self, config_path: str) -> None:
         try:
             config = BuilderConfig(config_path)
 
@@ -261,38 +246,23 @@ class PyNexeCLI:
             self._console.print(table)
 
         except FileNotFoundError as exception:
-            error_text = Text()
-            error_text.append("Config file not found\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append(
+            self._print_error(
+                "Config file not found",
+                [str(exception)],
                 "Create a config.yaml file in your project root.",
-                style="dim",
             )
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
 
         except ValueError as exception:
-            error_text = Text()
-            error_text.append("Invalid configuration\n", style="bold red")
-            error_text.append(f"  {exception}\n\n", style="red")
-            error_text.append(
+            self._print_error(
+                "Invalid configuration",
+                [str(exception)],
                 "Check your config.yaml for missing required fields.",
-                style="dim",
             )
 
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
-
         except Exception as exception:
-            error_text = Text()
-            error_text.append("Failed to load project info\n", style="bold red")
-            error_text.append(f"  {exception}", style="red")
+            self._print_error("Failed to load project info", [str(exception)])
 
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
-
-    def run(self):
+    def run(self) -> None:
         """Main CLI entry point."""
         parser = argparse.ArgumentParser(
             description="PyNexe - Python to Native Executable Builder",
@@ -314,28 +284,21 @@ class PyNexeCLI:
 
         args = parser.parse_args()
 
-        # Handle help
         if args.help or args.command == "help" or not args.command:
             self.print_help()
             return
 
-        # Show banner
         self.print_banner()
 
-        if not Path(args.config).exists():
-            error_text = Text()
-            error_text.append("Config file not found\n", style="bold red")
-            error_text.append(f"  {args.config}\n\n", style="red")
-            error_text.append(
+        config_path = Path(args.config)
+        if not config_path.exists():
+            self._print_error(
+                "Config file not found",
+                [str(config_path)],
                 "Create a config.yaml file in your project root.",
-                style="dim",
             )
-
-            error_panel = Panel(error_text, title="Error", border_style="red")
-            self._console.print(error_panel)
             sys.exit(1)
 
-        # Execute command
         if args.command == "run":
             self.build_project(args.config)
         elif args.command == "info":
@@ -344,15 +307,15 @@ class PyNexeCLI:
     def _validate_build_files(self, config: BuilderConfig) -> list[str]:
         issues = []
 
-        if not os.path.exists(config.main_file):
+        if not Path(config.main_file).exists():
             issues.append(f"Main file not found: {config.main_file}")
 
-        if config.icon_file and not os.path.exists(config.icon_file):
+        if config.icon_file and not Path(config.icon_file).exists():
             issues.append(f"Icon file not found: {config.icon_file}")
 
         for data_dir in config.include_data_dirs:
-            source_path = data_dir.split("=")[0] if "=" in data_dir else data_dir
-            if not os.path.exists(source_path):
+            source_path, _ = parse_data_dir_entry(data_dir)
+            if not Path(source_path).exists():
                 issues.append(f"Data directory not found: {source_path}")
 
         return issues

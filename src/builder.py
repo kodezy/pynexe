@@ -2,15 +2,30 @@
 Core building logic for Python projects with Nuitka.
 """
 
-import os
 import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+DEFAULT_WINDOWS_METADATA: dict[str, str] = {
+    "product_name": "Windows System Manager",
+    "file_description": "System Configuration Manager",
+    "product_version": "10.0.19041.1",
+    "file_version": "10.0.19041.1",
+    "copyright": "Microsoft Corporation",
+    "company_name": "Microsoft Corporation",
+}
+
+
+def parse_data_dir_entry(entry: str) -> tuple[str, str]:
+    """Return (source_path, dest_path) for a data dir entry (source or source=dest)."""
+    source, _, dest = entry.partition("=")
+    return source.strip(), (dest.strip() or source.strip())
 
 
 class BuilderConfig:
@@ -54,17 +69,7 @@ class BuilderConfig:
 
     @property
     def windows_metadata(self) -> dict[str, str]:
-        return self.config.get(
-            "windows_metadata",
-            {
-                "product_name": "Windows System Manager",
-                "file_description": "System Configuration Manager",
-                "product_version": "10.0.19041.1",
-                "file_version": "10.0.19041.1",
-                "copyright": "Microsoft Corporation",
-                "company_name": "Microsoft Corporation",
-            },
-        )
+        return self.config.get("windows_metadata", DEFAULT_WINDOWS_METADATA)
 
     @property
     def nuitka_plugins(self) -> list[str]:
@@ -93,10 +98,11 @@ class BuilderConfig:
         return base_items + custom_items
 
     def _load_config(self) -> dict[str, Any]:
-        if not os.path.exists(self.config_path):
+        path = Path(self.config_path)
+        if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
 
-        with open(self.config_path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def _validate_config(self) -> None:
@@ -115,13 +121,13 @@ class Builder:
     def __init__(self, config: BuilderConfig):
         self.config = config
 
-        self._temp_dir: str | None = None
-        self._venv_path: str | None = None
-        self._python_exe: str | None = None
+        self._temp_dir: Path | None = None
+        self._venv_path: Path | None = None
+        self._python_exe: Path | None = None
 
     def create_temp_env(self) -> None:
-        self._temp_dir = tempfile.mkdtemp(prefix="build_")
-        self._venv_path = Path(self._temp_dir) / "venv"
+        self._temp_dir = Path(tempfile.mkdtemp(prefix="build_"))
+        self._venv_path = self._temp_dir / "venv"
 
         result = subprocess.run(
             [sys.executable, "-m", "venv", str(self._venv_path)],
@@ -132,31 +138,22 @@ class Builder:
             error_msg = result.stderr.strip() or result.stdout.strip()
             raise RuntimeError(f"Failed to create virtual environment: {error_msg}")
 
-        if os.name == "nt":
-            self._python_exe = self._venv_path / "Scripts" / "python.exe"
-        else:
-            self._python_exe = self._venv_path / "bin" / "python"
+        self._python_exe = self._venv_path / ("Scripts" if sys.platform == "win32" else "bin") / "python"
 
     def install_dependencies(self) -> None:
-        for dep in self.config.build_libs:
-            self._install_single_dependency(dep)
+        self.install_dependencies_with_callback(lambda _dep, _index, _total: None)
 
-        if self.config.project_libs:
-            for dep in self.config.project_libs:
-                self._install_single_dependency(dep)
-
-    def install_dependencies_with_callback(self, callback) -> None:
-        all_deps = list(self.config.build_libs) + list(self.config.project_libs)
-        total = len(all_deps)
+    def install_dependencies_with_callback(self, callback: Callable[[str, int, int], None]) -> None:
+        all_deps = [*self.config.build_libs, *self.config.project_libs]
 
         for index, dep in enumerate(all_deps, start=1):
-            callback(dep, index, total)
+            callback(dep, index, len(all_deps))
             self._install_single_dependency(dep)
 
     def build_with_nuitka(self) -> None:
-        if not os.path.exists(self.config.main_file):
-            main_path = Path(self.config.main_file).absolute()
-            raise FileNotFoundError(f"Main file not found: {main_path}")
+        main_path = Path(self.config.main_file)
+        if not main_path.exists():
+            raise FileNotFoundError(f"Main file not found: {main_path.absolute()}")
 
         nuitka_args = [
             str(self._python_exe),
@@ -176,35 +173,21 @@ class Builder:
             f"--company-name={self.config.windows_metadata['company_name']}",
         ]
 
-        # Add extra args
         for arg in self.config.nuitka_extra_args:
             nuitka_args.append(arg)
 
-        # Add packages (if any)
         for package in self.config.include_packages:
             nuitka_args.append(f"--include-package={package}")
 
-        # Add data dirs (if any)
         for data_dir in self.config.include_data_dirs:
-            # Parse format: "source=dest" or just "source"
-            if "=" in data_dir:
-                parts = data_dir.split("=", 1)  # Split only on first "="
-                source_path = parts[0]
-                dest_path = parts[1] if len(parts) > 1 else parts[0]
-            else:
-                source_path = data_dir
-                dest_path = data_dir
-
-            # Only add if source path exists
-            if os.path.exists(source_path):
+            source_path, dest_path = parse_data_dir_entry(data_dir)
+            if Path(source_path).exists():
                 nuitka_args.append(f"--include-data-dir={source_path}={dest_path}")
 
-        # Add plugins
         for plugin in self.config.nuitka_plugins:
             nuitka_args.append(f"--plugin-enable={plugin}")
 
-        # Add icon if provided
-        if self.config.icon_file and os.path.exists(self.config.icon_file):
+        if self.config.icon_file and Path(self.config.icon_file).exists():
             nuitka_args.append(f"--windows-icon-from-ico={self.config.icon_file}")
 
         nuitka_args.append(self.config.main_file)
@@ -217,26 +200,27 @@ class Builder:
                 error_msg = "Nuitka compilation failed with no error message"
             raise RuntimeError(f"Nuitka build failed: {error_msg}")
 
-        if not os.path.exists(self.config.output_name):
-            output_path = Path(self.config.output_name).absolute()
-            raise RuntimeError(f"Output file not created: {output_path}")
+        if not Path(self.config.output_name).exists():
+            raise RuntimeError(f"Output file not created: {Path(self.config.output_name).absolute()}")
+
+    def _remove_path(self, path: str | Path) -> None:
+        p = Path(path)
+        if not p.exists():
+            return
+        try:
+            if p.is_dir():
+                shutil.rmtree(p, ignore_errors=True)
+            else:
+                p.unlink()
+        except (OSError, PermissionError):
+            pass
 
     def cleanup(self) -> None:
         for item in self.config.cleanup_items:
-            if os.path.exists(item):
-                try:
-                    if os.path.isdir(item):
-                        shutil.rmtree(item, ignore_errors=True)
-                    else:
-                        os.remove(item)
-                except (OSError, PermissionError):
-                    pass
+            self._remove_path(item)
 
-        if self._temp_dir and os.path.exists(self._temp_dir):
-            try:
-                shutil.rmtree(self._temp_dir, ignore_errors=True)
-            except (OSError, PermissionError):
-                pass
+        if self._temp_dir is not None and self._temp_dir.exists():
+            self._remove_path(self._temp_dir)
 
     def build(self) -> None:
         """Main build method."""
