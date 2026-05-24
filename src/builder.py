@@ -13,12 +13,12 @@ from typing import Any
 import yaml
 
 DEFAULT_WINDOWS_METADATA: dict[str, str] = {
-    "product_name": "Windows System Manager",
-    "file_description": "System Configuration Manager",
-    "product_version": "10.0.19041.1",
-    "file_version": "10.0.19041.1",
-    "copyright": "Microsoft Corporation",
-    "company_name": "Microsoft Corporation",
+    "product_name": "My Application",
+    "file_description": "My Python Application",
+    "product_version": "1.0.0.0",
+    "file_version": "1.0.0.0",
+    "copyright": "My Company",
+    "company_name": "My Company",
 }
 
 
@@ -131,6 +131,7 @@ class Builder:
 
         result = subprocess.run(
             [sys.executable, "-m", "venv", str(self._venv_path)],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -192,7 +193,7 @@ class Builder:
 
         nuitka_args.append(self.config.main_file)
 
-        result = subprocess.run(nuitka_args, capture_output=True, text=True)
+        result = subprocess.run(nuitka_args, check=False, capture_output=True, text=True)
 
         if result.returncode != 0:
             error_msg = result.stderr.strip() or result.stdout.strip()
@@ -222,49 +223,10 @@ class Builder:
         if self._temp_dir is not None and self._temp_dir.exists():
             self._remove_path(self._temp_dir)
 
-    def build(self) -> None:
-        """Main build method."""
-        try:
-            print(f"Building project: {self.config.project_name}")
-            print(f"Main file: {self.config.main_file}")
-            print(f"Output: {self.config.output_name}")
-            if self.config.icon_file:
-                print(f"Icon file: {self.config.icon_file}")
-
-            print("Creating environment...")
-            self.create_temp_env()
-
-            print("Installing dependencies...")
-            if self.config.project_libs:
-                print(f"  Project libraries: {', '.join(self.config.project_libs)}")
-            else:
-                print("  No project libraries specified")
-            self.install_dependencies()
-
-            print("Compiling with Nuitka...")
-            if "upx" in self.config.nuitka_plugins:
-                print("  UPX compression via Nuitka plugin...")
-            self.build_with_nuitka()
-
-            print("Cleaning up...")
-            self.cleanup()
-
-            print(f"Build completed successfully: {self.config.output_name}")
-            print(f"Project: {self.config.project_name}")
-
-        except KeyboardInterrupt:
-            print("Build interrupted by user")
-            self.cleanup()
-            sys.exit(1)
-
-        except Exception as exception:
-            print(f"Build failed: {exception}")
-            self.cleanup()
-            sys.exit(1)
-
     def _install_single_dependency(self, dep: str) -> None:
         result = subprocess.run(
             [str(self._python_exe), "-m", "pip", "install", dep],
+            check=False,
             capture_output=True,
             text=True,
         )
