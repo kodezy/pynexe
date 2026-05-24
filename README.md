@@ -19,6 +19,7 @@ PyNexe simplifies the process of creating standalone Windows executables from Py
 
 - **Python 3.13+**
 - **Windows 10/11** (64-bit)
+- **Note:** Development on macOS/Linux is supported for config editing and CLI usage, but executable builds target Windows. A warning is shown when running `run` on non-Windows systems.
 - **Nuitka** (installed automatically)
 - **Visual Studio Build Tools** (for Nuitka's C++ compilation)
 

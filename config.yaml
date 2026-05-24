@@ -29,7 +29,3 @@ nuitka_extra_args:
   - "--lto=no"
   - "--show-scons"
   - "--jobs=1"
-
-cleanup_items:
-  - "build"
-  - "dist"
