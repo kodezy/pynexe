@@ -236,6 +236,19 @@ class PyNexeCLI:
             deps_display = f"{total_deps} total ({build_deps} build, {project_deps} project)"
             table.add_row("Dependencies", deps_display)
 
+            build_libs_list = ", ".join(config.build_libs) if config.build_libs else "[dim]None[/dim]"
+            table.add_row("Build Libs", build_libs_list)
+
+            plugins_list = ", ".join(config.nuitka_plugins) if config.nuitka_plugins else "[dim]None[/dim]"
+            table.add_row("Nuitka Plugins", plugins_list)
+
+            metadata = config.windows_metadata
+            metadata_display = (
+                f"{metadata.get('product_name', 'N/A')} "
+                f"(v{metadata.get('product_version', 'N/A')})"
+            )
+            table.add_row("Windows Product", metadata_display)
+
             if config.project_libs:
                 deps_list = ", ".join(config.project_libs[:5])
                 if len(config.project_libs) > 5:
@@ -267,6 +280,7 @@ class PyNexeCLI:
                 [str(exception)],
                 "Create a config.yaml file in your project root.",
             )
+            sys.exit(1)
 
         except ValueError as exception:
             self._print_error(
@@ -274,9 +288,11 @@ class PyNexeCLI:
                 [str(exception)],
                 "Check your config.yaml for missing required fields.",
             )
+            sys.exit(1)
 
         except Exception as exception:
             self._print_error("Failed to load project info", [str(exception)])
+            sys.exit(1)
 
     def run(self) -> None:
         """Main CLI entry point."""
