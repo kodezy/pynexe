@@ -28,6 +28,13 @@ def parse_data_dir_entry(entry: str) -> tuple[str, str]:
     return source.strip(), (dest.strip() or source.strip())
 
 
+def _truncate_output(text: str, limit: int = 2000) -> str:
+    cleaned = text.strip()
+    if len(cleaned) <= limit:
+        return cleaned
+    return f"{cleaned[:limit]}\n... (truncated)"
+
+
 class BuilderConfig:
     def __init__(self, config_path: str):
         self.config_path = config_path
@@ -151,7 +158,7 @@ class Builder:
             callback(dep, index, len(all_deps))
             self._install_single_dependency(dep)
 
-    def build_with_nuitka(self) -> None:
+    def build_with_nuitka(self, *, live_output: bool = False) -> None:
         main_path = Path(self.config.main_file)
         if not main_path.exists():
             raise FileNotFoundError(f"Main file not found: {main_path.absolute()}")
@@ -193,12 +200,17 @@ class Builder:
 
         nuitka_args.append(self.config.main_file)
 
-        result = subprocess.run(nuitka_args, check=False, capture_output=True, text=True)
+        if live_output:
+            result = subprocess.run(nuitka_args, check=False)
+        else:
+            result = subprocess.run(nuitka_args, check=False, capture_output=True, text=True)
 
         if result.returncode != 0:
-            error_msg = result.stderr.strip() or result.stdout.strip()
-            if not error_msg:
-                error_msg = "Nuitka compilation failed with no error message"
+            if live_output:
+                error_msg = "Nuitka compilation failed (see output above)"
+            else:
+                raw = (result.stderr or "") + (result.stdout or "")
+                error_msg = _truncate_output(raw) or "Nuitka compilation failed with no error message"
             raise RuntimeError(f"Nuitka build failed: {error_msg}")
 
         if not Path(self.config.output_name).exists():
