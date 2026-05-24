@@ -56,8 +56,17 @@ class PyNexeCLI:
         panel = Panel(help_text, border_style="blue")
         self._console.print(panel)
 
+    def _warn_non_windows(self) -> None:
+        if sys.platform == "win32":
+            return
+        self._console.print(
+            "[yellow]Warning: PyNexe builds Windows executables. "
+            "You are not on Windows — build may fail.[/yellow]"
+        )
+
     def build_project(self, config_path: str) -> None:
         try:
+            builder_ref: Builder | None = None
             config = BuilderConfig(config_path)
 
             validation_issues = self._validate_build_files(config)
@@ -85,6 +94,7 @@ class PyNexeCLI:
             self._console.print(info_panel)
 
             builder = Builder(config)
+            builder_ref = builder
 
             total_deps = len(config.build_libs) + len(config.project_libs)
             with Progress(
@@ -117,14 +127,18 @@ class PyNexeCLI:
                     task2 = progress.add_task("No dependencies to install", total=1)
                     progress.update(task2, completed=1)
 
-                task3 = progress.add_task("Compiling with Nuitka...", total=1)
-                builder.build_with_nuitka()
-                progress.update(
-                    task3,
-                    completed=1,
-                    description="✓ Compilation complete",
-                )
+            self._console.print(
+                "[bold]Compiling with Nuitka[/bold] "
+                "[dim](this may take several minutes)...[/dim]"
+            )
+            builder.build_with_nuitka(live_output=True)
+            self._console.print("[green]✓ Compilation complete[/green]")
 
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self._console,
+            ) as progress:
                 task4 = progress.add_task("Cleaning up...", total=1)
                 builder.cleanup()
                 progress.update(task4, completed=1, description="✓ Cleanup finished")
@@ -145,6 +159,8 @@ class PyNexeCLI:
 
         except KeyboardInterrupt:
             self._console.print("\n[yellow]Build interrupted by user[/yellow]")
+            if builder_ref is not None:
+                builder_ref.cleanup()
             sys.exit(1)
 
         except FileNotFoundError as exception:
@@ -300,6 +316,7 @@ class PyNexeCLI:
             sys.exit(1)
 
         if args.command == "run":
+            self._warn_non_windows()
             self.build_project(args.config)
         elif args.command == "info":
             self.show_info(args.config)
