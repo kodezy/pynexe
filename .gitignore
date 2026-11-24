@@ -289,3 +289,8 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm
 
 .DS_Store
+# Coding agent artifacts (installed skills, host config, lockfile)
+.agents/
+.claude/
+.cursor/
+.brantz-lock.json
