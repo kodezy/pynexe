@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """PyNexe CLI
 Simple and direct Python to Native Executable Builder.
 """
@@ -187,7 +186,7 @@ class PyNexeCLI:
             )
             sys.exit(1)
 
-        except Exception as exception:
+        except Exception as exception:  # noqa: BLE001
             self._print_error(
                 "Unexpected error",
                 [str(exception)],
@@ -290,7 +289,7 @@ class PyNexeCLI:
             )
             sys.exit(1)
 
-        except Exception as exception:
+        except Exception as exception:  # noqa: BLE001
             self._print_error("Failed to load project info", [str(exception)])
             sys.exit(1)
 

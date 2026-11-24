@@ -76,7 +76,7 @@ class BuilderConfig:
 
     @property
     def windows_metadata(self) -> dict[str, str]:
-        return self.config.get("windows_metadata", DEFAULT_WINDOWS_METADATA)
+        return {**DEFAULT_WINDOWS_METADATA, **(self.config.get("windows_metadata") or {})}
 
     @property
     def nuitka_plugins(self) -> list[str]:
@@ -181,8 +181,7 @@ class Builder:
             f"--company-name={self.config.windows_metadata['company_name']}",
         ]
 
-        for arg in self.config.nuitka_extra_args:
-            nuitka_args.append(arg)
+        nuitka_args.extend(self.config.nuitka_extra_args)
 
         for package in self.config.include_packages:
             nuitka_args.append(f"--include-package={package}")
