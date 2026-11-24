@@ -41,4 +41,4 @@ There is no test suite and no CI.
 
 - Follow your host's instruction precedence; the user's message in the session wins.
 - Scratch work goes in the host scratchpad or the OS temp dir, never in the repo.
-- Project skills arrive through `brantz install` (`.brantz-lock.json`); do not edit their copies under `.agents/`, `.claude/`, or `.cursor/`. Use `integrity-review` before claiming a change done, `write-readme` for README changes, and `git-commit` when committing.
+- Project skills arrive through `brantz install` (`.brantz-lock.json`); their copies under `.agents/`, `.claude/`, and `.cursor/` are gitignored, so do not edit or commit them. Use `integrity-review` before claiming a change done, `write-readme` for README changes, and `git-commit` when committing.
