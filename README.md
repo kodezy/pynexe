@@ -1,60 +1,39 @@
-# PyNexe
+<p align="center">
+  <img src="assets/pynexe-github-banner.png" alt="PyNexe" width="480">
+</p>
 
-**Python to Windows executable builder using Nuitka**
+<p align="center">Builds a standalone Windows executable from a Python project, driven by a single <code>config.yaml</code>.</p>
 
-PyNexe simplifies the process of creating standalone Windows executables from Python scripts. It wraps Nuitka's powerful translation and compilation capabilities with a clean YAML configuration system and rich CLI interface, making executable generation accessible and consistent.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776ab?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Nuitka-3b82f6" alt="Nuitka">
+  <img src="https://img.shields.io/badge/Windows-0078d4" alt="Windows">
+</p>
 
-## 🚀 Features
+## Setup
 
-- **Wraps Nuitka's translation** - Converts Python to native C++ via Nuitka
-- **YAML-based configuration** eliminates complex command-line arguments
-- **Isolated build environments** ensure consistent and reproducible builds
-- **Windows metadata support** for professional executable properties
-- **UPX compression** reduces executable size automatically
-- **Rich CLI interface** with detailed progress tracking, file validation, and clear error messages
-- **Source code protection** through Nuitka's translation and obfuscation
-- **Fast startup times** compared to interpreted Python scripts
+**Requirements:** Python 3.13+ and, to build, Windows 10/11 with Visual Studio Build Tools.
 
-## 📋 Requirements
+On macOS and Linux you can edit configs and run `info`. `run` only warns and then fails.
 
-- **Python 3.13+**
-- **Windows 10/11** (64-bit)
-- **Note:** Development on macOS/Linux is supported for config editing and CLI usage, but executable builds target Windows. A warning is shown when running `run` on non-Windows systems.
-- **Nuitka** (installed automatically)
-- **Visual Studio Build Tools** (for Nuitka's C++ compilation)
-
-## 📦 Installation
-
-1. **Clone the repository:**
 ```bash
 git clone https://github.com/kodezy/pynexe.git
 cd pynexe
-```
-
-2. **Install dependencies:**
-```bash
 pip install -r requirements.txt
-```
-
-3. **Verify installation:**
-```bash
 python pynexe.py help
 ```
 
-## ⚙️ Configuration
+## Config
 
-Create a `config.yaml` file in your project root:
+Copy [`config.yaml`](config.yaml) into the folder of the project you want to build and edit it.
 
 ```yaml
-# Required settings
 project_name: "my_app"
 main_file: "main.py"
 output_name: "my_app.exe"
 
-# Optional settings
 project_libs:
   - "requests"
-  - "pandas"
 
 include_packages:
   - "src"
@@ -71,99 +50,69 @@ windows_metadata:
   file_version: "1.0.0.0"
   copyright: "My Company"
   company_name: "My Company"
-
-# Advanced settings
-build_libs:
-  - "nuitka"        # Python to C++
-  - "ordered-set"   # Dependency for Nuitka
-
-nuitka_plugins:
-  - "upx"           # Compress size
-  - "no-qt"         # Exclude Qt
-  - "tk-inter"      # Include Tkinter
-
-nuitka_extra_args:
-  - "--lto=no"      # Disable link-time optimization
-  - "--show-scons"  # Show SCons build output
-  - "--jobs=1"      # Single compilation job
-
-cleanup_items:
-  - "build"         # Remove build directory
-  - "dist"          # Remove dist directory
 ```
 
-## 🧪 Usage
+| Key | Required | Description |
+|-----|----------|-------------|
+| `project_name` | yes | Name used for the build folders |
+| `main_file` | yes | Entry script |
+| `output_name` | yes | Executable file name |
+| `project_libs` | no | Packages your project needs, installed in the build environment |
+| `include_packages` | no | Local packages to include in the executable |
+| `include_data_dirs` | no | Data folders as `source=destination` |
+| `icon_file` | no | `.ico` file for the executable |
+| `windows_metadata` | no | Product, version, copyright, and company properties |
+| `build_libs` | no | Build tools installed in the build environment; defaults to `nuitka` and `ordered-set` |
+| `nuitka_plugins` | no | Nuitka plugins; defaults to `upx`, `no-qt`, and `tk-inter` |
+| `nuitka_extra_args` | no | Extra Nuitka arguments; defaults to `--lto=no`, `--show-scons`, and `--jobs=1` |
+| `cleanup_items` | no | Extra paths to delete after the build |
 
-### Basic Usage
+Paths resolve against the current directory, not the config file's folder.
 
-1. **Create your Python script:**
-```python
-# main.py
-import requests
+## Usage
 
-def main():
-    response = requests.get("https://api.github.com")
-    print(f"Status: {response.status_code}")
-
-if __name__ == "__main__":
-    main()
-```
-
-2. **Build the executable:**
-```bash
-python pynexe.py run
-```
-
-3. **Result:** `my_app.exe` ready for distribution
-
-### Advanced Usage
+Run these from the project folder that holds your `config.yaml` and `main_file`.
 
 ```bash
-# Build with custom config
-python pynexe.py run --config production.yaml
-
-# Check project settings and file status
 python pynexe.py info
-
-# Show help
-python pynexe.py help
+python pynexe.py run
+python pynexe.py run --config production.yaml
 ```
 
-## 🧠 How It Works
+- `info` shows the settings and whether each file exists. It builds nothing.
+- `run` builds the executable and writes `output_name`.
+- `--config` selects another config file.
 
-1. **Validation** - Checks that all required files exist before building
-2. **Environment Setup** - Creates isolated build environment
-3. **Dependency Resolution** - Installs required packages with progress feedback
-4. **Nuitka Processing** - Nuitka translates and compiles Python to executable
-5. **Optimization** - Applies UPX compression and metadata
-6. **Cleanup** - Removes temporary build files
-7. **Delivery** - Produces standalone executable with size information
+The build runs in a temporary virtual environment with only `build_libs` and `project_libs` installed.
 
-## 🔒 Security Considerations
+**`run` deletes paths in the current directory** after the build: `<project_name>.build`, `<project_name>.dist`, `<project_name>.onefile-build`, `__pycache__`, and every `cleanup_items` entry. Run it in a disposable project folder.
 
-### Antivirus Warnings
+## Architecture
 
-Generated executables may trigger antivirus alerts. This is normal behavior:
+```text
+pynexe.py        # Entry point
+src/
+├── cli.py       # Commands, file validation, and output
+└── builder.py   # Config loading, build environment, and Nuitka
+```
 
-**Common causes:**
-- Nuitka-generated executables are flagged as suspicious
-- UPX compression triggers heuristic detection
-- New/uncommon executables treated as potential threats
+`cli.py` calls `builder.py`, which has no console output of its own.
 
-**Solutions:**
-- Add executable to antivirus whitelist
-- Submit false positive report to antivirus vendor
-- Use digital signature for commercial distribution
-- Test thoroughly before distribution
+## Limits
 
-## 🛠️ Troubleshooting
+- Antivirus software may flag the executable. Nuitka output and UPX compression often trigger heuristics. Add an exception, report a false positive, or sign the executable.
+- A failed Nuitka build usually means Visual Studio Build Tools are missing.
+- A missing module at runtime usually means it is absent from `project_libs`.
 
-| Issue | Solution |
-|-------|----------|
-| Missing dependencies | Add to `project_libs` in config.yaml |
-| Large executable size | UPX compression is enabled by default |
-| Build errors | Check Python syntax and dependencies. The CLI now shows detailed error messages with suggestions |
-| File not found errors | Use `python pynexe.py info` to check file status before building |
-| Antivirus alerts | Add to whitelist or submit for analysis |
-| Nuitka build fails | Ensure Visual Studio Build Tools installed |
-| Config file not found | Create `config.yaml` in project root |
+## Development
+
+```bash
+pip install ruff
+ruff check .
+```
+
+There is no test suite. [AGENTS.md](AGENTS.md) maps the repository for coding agents.
+
+## License
+
+[MIT](LICENSE)
